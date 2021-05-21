@@ -89,11 +89,11 @@ class StaticModel(object):
         cost = paddle.add(true_xent, neg_xent)
         avg_cost = paddle.mean(x=cost)
 
-        self._cost = avg_cost
+        self.cost = avg_cost
         fetch_dict = {'loss': avg_cost}
         return fetch_dict
 
-    def create_optimizer(self, strategy=None):
+    def create_optimizer(self, strategy=None, pure_bf16=False):
         optimizer = paddle.optimizer.SGD(learning_rate=self.learning_rate)
         #            learning_rate=paddle.fluid.layers.exponential_decay(
         #                learning_rate=self.learning_rate,
@@ -103,6 +103,21 @@ class StaticModel(object):
         if strategy != None:
             import paddle.distributed.fleet as fleet
             optimizer = fleet.distributed_optimizer(optimizer, strategy)
+        if pure_bf16:
+            optimizer = paddle.static.amp.bf16.decorate_bf16(
+                optimizer,
+                amp_lists=paddle.static.amp.bf16.AutoMixedPrecisionListsBF16(
+                    custom_fp32_list={
+                        'lookup_table',
+                        'floor',
+                        'scale',
+                        'fill_constant',
+                        'matmul',
+                    }
+                ),
+                use_bf16_guard=False,
+                use_pure_bf16=pure_bf16)
+        optimizer.minimize(self.cost)
         return optimizer
 
     def infer_net(self, input):
