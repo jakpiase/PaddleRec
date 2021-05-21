@@ -138,8 +138,12 @@ class Main(object):
             self.train_result_dict["speed"].append(epoch_speed)
 
             model_dir = "{}/{}".format(save_model_path, epoch)
-            if fleet.is_first_worker(
-            ) and save_model_path and is_distributed_env():
+            if self.pure_bf16:
+                paddle.fluid.io.save_inference_model(
+                    self.exe, model_dir,
+                    [feed.name for feed in self.input_data],
+                    self.inference_target_var)
+            elif fleet.is_first_worker() and save_model_path and is_distributed_env():
                 fleet.save_inference_model(
                     self.exe, model_dir,
                     [feed.name for feed in self.input_data],
@@ -200,7 +204,7 @@ class Main(object):
                     metrics_string = ""
                     for var_idx, var_name in enumerate(self.metrics):
                         metrics_string += "{}: {}, ".format(var_name,
-                                                            fetch_var[var_idx] if var_name != "LOSS" or config['pure_bf16'] is False else
+                                                            fetch_var[var_idx] if var_name != "LOSS" or not config['pure_bf16'] else
                                                             convert_uint16_to_float(fetch_var[var_idx]))
                     profiler_string = ""
                     profiler_string += "avg_batch_cost: {} sec, ".format(
