@@ -199,7 +199,7 @@ class StaticModel(object):
                 optimizer,
                 amp_lists=paddle.static.amp.bf16.AutoMixedPrecisionListsBF16(
                     custom_fp32_list={
-                        'lookup_table',
+                        'elementwise_pow',
                         'floor',
                         'scale',
                         'fill_constant',
