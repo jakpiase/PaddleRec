@@ -40,6 +40,7 @@ def parse_args():
     parser.add_argument("-m", "--config_yaml", type=str)
     parser.add_argument("-o", "--opt", nargs='*', type=str)
     parser.add_argument('-bf16', '--pure_bf16', type=ast.literal_eval, default=False, help="whether use bf16")
+    parser.add_argument('-fq', '--fast_quit', type=ast.literal_eval, default=False)
     args = parser.parse_args()
     args.abs_dir = os.path.dirname(os.path.abspath(args.config_yaml))
     args.config_yaml = get_abs_model(args.config_yaml)
@@ -54,6 +55,7 @@ def main(args):
     config["yaml_path"] = args.config_yaml
     config["config_abs_dir"] = args.abs_dir
     config["pure_bf16"] = args.pure_bf16
+    config["fast_quit"] = args.fast_quit
     # modify config from command
     if args.opt:
         for parameter in args.opt:
@@ -90,6 +92,7 @@ def main(args):
     reader_type = config.get("runner.reader_type", "DataLoader")
     use_fleet = config.get("runner.use_fleet", False)
     pure_bf16 = config.get("pure_bf16", False)
+    fast_quit = config.get("fast_quit", False)
     os.environ["CPU_NUM"] = str(config.get("runner.thread_num", 1))
     logger.info("**************common.configs**********")
     logger.info(
@@ -116,11 +119,17 @@ def main(args):
         else:
             static_model_class.create_optimizer()
 
+
     exe = paddle.static.Executor(place)
     # initialize
     exe.run(paddle.static.default_startup_program())
     if pure_bf16:
         optimizer.amp_init(exe)
+
+    with open("./main_program.prototxt", 'w+') as f:
+        f.write(str(paddle.static.default_main_program()))
+    with open("./startup_program.prototxt", 'w+') as f:
+        f.write(str(paddle.static.default_startup_program()))
 
     last_epoch_id = config.get("last_epoch", -1)
 
@@ -272,6 +281,8 @@ def dataloader_train(epoch_id, train_dataloader, input_data_names, fetch_vars,
             total_samples = 0
         reader_start = time.time()
         step_num = step_num + 1
+        if config['fast_quit']:
+            quit()
     return fetch_batch_var, step_num
 
 
