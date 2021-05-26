@@ -124,7 +124,7 @@ def main(args):
     # initialize
     exe.run(paddle.static.default_startup_program())
     if pure_bf16:
-        optimizer.amp_init(exe)
+        optimizer.amp_init(exe.place)
 
     with open("./main_program.prototxt", 'w+') as f:
         f.write(str(paddle.static.default_main_program()))
