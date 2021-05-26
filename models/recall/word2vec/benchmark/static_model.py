@@ -203,7 +203,7 @@ class StaticModel(object):
                         'floor',
                         'scale',
                         'fill_constant',
-                        'matmul',
+                        # 'matmul',
                     }
                 ),
                 use_bf16_guard=False,

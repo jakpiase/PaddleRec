@@ -25,9 +25,11 @@ sys.path.append(os.path.abspath(os.path.join(__dir__, '..')))
 from utils.static_ps.reader_helper import get_reader
 from utils.utils_single import load_yaml, load_static_model_class, get_abs_model, create_data_loader, reset_auc
 from utils.save_load import save_static_model, save_inference_model
+from paddle.fluid.tests.unittests.op_test import convert_uint16_to_float
 
 import time
 import argparse
+import ast
 logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -37,6 +39,7 @@ def parse_args():
     parser = argparse.ArgumentParser("PaddleRec train static script")
     parser.add_argument("-m", "--config_yaml", type=str)
     parser.add_argument("-o", "--opt", nargs='*', type=str)
+    parser.add_argument('-bf16', '--pure_bf16', type=ast.literal_eval, default=False, help="whether use bf16")
     args = parser.parse_args()
     args.abs_dir = os.path.dirname(os.path.abspath(args.config_yaml))
     args.config_yaml = get_abs_model(args.config_yaml)
@@ -50,6 +53,7 @@ def main(args):
     config = load_yaml(args.config_yaml)
     config["yaml_path"] = args.config_yaml
     config["config_abs_dir"] = args.abs_dir
+    config["pure_bf16"] = args.pure_bf16
     # modify config from command
     if args.opt:
         for parameter in args.opt:
@@ -85,6 +89,7 @@ def main(args):
     batch_size = config.get("runner.train_batch_size", None)
     reader_type = config.get("runner.reader_type", "DataLoader")
     use_fleet = config.get("runner.use_fleet", False)
+    pure_bf16 = config.get("pure_bf16", False)
     os.environ["CPU_NUM"] = str(config.get("runner.thread_num", 1))
     logger.info("**************common.configs**********")
     logger.info(
@@ -106,11 +111,16 @@ def main(args):
     if use_fleet:
         static_model_class.create_optimizer(strategy)
     else:
-        static_model_class.create_optimizer()
+        if pure_bf16:
+            optimizer=static_model_class.create_optimizer(pure_bf16=pure_bf16)
+        else:
+            static_model_class.create_optimizer()
 
     exe = paddle.static.Executor(place)
     # initialize
     exe.run(paddle.static.default_startup_program())
+    if pure_bf16:
+        optimizer.amp_init(exe)
 
     last_epoch_id = config.get("last_epoch", -1)
 
@@ -139,7 +149,8 @@ def main(args):
             metric_str = ""
             for var_idx, var_name in enumerate(fetch_vars):
                 metric_str += "{}: {}, ".format(
-                    var_name, str(fetch_batch_var[var_idx]).strip("[]"))
+                    var_name, str(fetch_batch_var[var_idx] if var_name != "loss" or not config['pure_bf16'] else
+                                  convert_uint16_to_float(fetch_batch_var[var_idx])).strip("[]"))
             logger.info("epoch: {} done, ".format(epoch_id) + metric_str +
                         "epoch time: {:.2f} s".format(time.time() -
                                                       epoch_begin))
@@ -241,7 +252,8 @@ def dataloader_train(epoch_id, train_dataloader, input_data_names, fetch_vars,
             metric_str = ""
             for var_idx, var_name in enumerate(fetch_vars):
                 metric_str += "{}: {}, ".format(
-                    var_name, str(fetch_batch_var[var_idx]).strip("[]"))
+                    var_name, str(fetch_batch_var[var_idx] if var_name != "loss" or not config['pure_bf16'] else
+                                  convert_uint16_to_float(fetch_batch_var[var_idx])).strip("[]"))
                 if use_visual:
                     log_visual.add_scalar(
                         tag="train/" + var_name,
