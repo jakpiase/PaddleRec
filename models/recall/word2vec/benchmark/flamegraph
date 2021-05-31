@@ -1,0 +1,5 @@
+JITDUMPDIR=. DNNL_JIT_PROFILE=6 perf record -k1 --call-graph dwarf,16384 -D 70000 python -u ../../../../tools/static_ps_trainer.py -m benchmark.yaml -bf16=True
+perf inject -j -i perf.data -o perf.data.j
+#perf script --no-inline -i perf.data.j | /home/jakub/FlameGraph/stackcollapse-perf.pl > out.perf-folded
+perf script -i perf.data.j | /home/jakub/FlameGraph/stackcollapse-perf.pl > out.perf-folded
+/home/jakub/FlameGraph/flamegraph.pl out.perf-folded > graph.svg

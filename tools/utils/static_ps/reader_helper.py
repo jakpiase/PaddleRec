@@ -72,7 +72,7 @@ def get_file_list(data_path, config):
         logger.info("Split file list for worker {}".format(fleet.worker_index(
         )))
         file_list = fleet.util.get_file_shard(file_list)
-    logger.info("File list: {}".format(file_list))
+    # logger.info("File list: {}".format(file_list))
     return file_list
 
 
@@ -94,7 +94,7 @@ def get_word_num(file_list):
         for index, line in enumerate(open(f, 'r')):
             line = line.rstrip().split()
             count += len(line)
-        logger.info("file: %s has %s words" % (f, count - last_count))
+        # logger.info("file: %s has %s words" % (f, count - last_count))
     logger.info("Total words: %s" % count)
     return count
 
